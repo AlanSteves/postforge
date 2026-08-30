@@ -50,13 +50,13 @@ export async function POST(req: Request) {
       }
     }
 
-    // Google Gemini API Generation Engine
     let aiContent = "";
-    let isDegraded = false;
-    const geminiKey = process.env.GEMINI_API_KEY;
+    let aiGenerationFailed = false;
+    const apiKey = process.env.GEMINI_API_KEY;
 
-    if (geminiKey && !geminiKey.includes("your-gemini-api-key-here") && !geminiKey.includes("your_gemini_api_key_here")) {
-      const systemPrompt = `You are an expert LinkedIn ghostwriter. Write a viral, high-converting LinkedIn post based strictly on the user's prompt. 
+    if (apiKey && !apiKey.includes("your-gemini-api-key-here")) {
+      try {
+        const systemInstruction = `You are an expert LinkedIn ghostwriter. Write a viral, high-converting LinkedIn post based strictly on the user's prompt.
 Tone: ${tone}
 Audience: ${audience}
 Length: ${length}
@@ -65,57 +65,58 @@ Language: ${language}
 
 RULES:
 1. Provide ONLY the final LinkedIn post copy.
-2. DO NOT include any conversational preamble or meta headings (e.g. do NOT write "Here is your post:").
+2. NO introductory or meta conversational headers.
 3. Include 3-5 relevant hashtags at the bottom.`;
 
-      const geminiModels = [
-        "gemini-3.1-flash-lite-preview",
-        "gemini-3-flash-preview",
-        "gemini-flash-latest",
-      ];
-
-      for (const model of geminiModels) {
-        if (aiContent) break;
-        try {
-          const geminiRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey.trim()}`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                systemInstruction: {
-                  parts: [{ text: systemPrompt }],
+        const geminiRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey.trim()}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              systemInstruction: {
+                parts: [{ text: systemInstruction }],
+              },
+              contents: [
+                {
+                  role: "user",
+                  parts: [{ text: prompt }],
                 },
-                contents: [
-                  {
-                    role: "user",
-                    parts: [{ text: prompt }],
-                  },
-                ],
-                generationConfig: {
-                  temperature: 0.7,
-                },
-              }),
-            }
-          );
-
-          const geminiData = await geminiRes.json();
-          if (geminiRes.ok && geminiData.candidates?.[0]?.content?.parts?.[0]?.text) {
-            aiContent = geminiData.candidates[0].content.parts[0].text.trim();
-            break;
-          } else {
-            console.error(`Gemini model ${model} response:`, geminiRes.status, geminiData.error?.message || geminiData);
+              ],
+              generationConfig: {
+                temperature: 0.7,
+              },
+            }),
           }
-        } catch (geminiErr) {
-          console.error(`Gemini model ${model} exception:`, geminiErr);
+        );
+
+        const geminiData = await geminiRes.json();
+
+        const candidateText =
+          geminiData?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+        if (geminiRes.ok && candidateText) {
+          aiContent = candidateText.trim();
+        } else {
+          aiGenerationFailed = true;
+          console.error(
+            "Gemini API returned error:",
+            geminiRes.status,
+            geminiData?.error?.message || geminiData
+          );
         }
+      } catch (err) {
+        aiGenerationFailed = true;
+        console.error("Gemini API network exception:", err);
       }
+    } else {
+      aiGenerationFailed = true;
     }
 
-    // Dynamic prompt-aware local fallback if API key is unconfigured or unreachable
+    // Fallback generation engine — only used if Gemini call failed or key is missing.
+    // aiGenerationFailed is surfaced in the response so the client can flag degraded output.
     if (!aiContent) {
       aiContent = generateRichLinkedInPost(prompt, tone, audience);
-      isDegraded = true;
     }
 
     let userMessageObj = {
@@ -176,7 +177,7 @@ RULES:
             conversationId,
             content: aiContent,
             hashtags: extractHashtags(aiContent, audience),
-            imageUrl: imagePreview || preferences?.imageUrl || null,
+            imageUrl: imagePreview || null,
             status: "DRAFT",
           },
         });
@@ -191,7 +192,7 @@ RULES:
 
     return NextResponse.json({
       success: true,
-      degraded: isDegraded,
+      degraded: aiGenerationFailed,
       data: {
         conversationId: conversationId || `conv-${Date.now()}`,
         userMessage: userMessageObj,
@@ -235,7 +236,7 @@ function extractHashtags(content: string, fallbackTopic: string): string[] {
   if (matches && matches.length > 0) {
     return Array.from(new Set(matches));
   }
-  const words = content.replace(/[^\w\s]/gi, "").split(/\s+/).filter((w) => w.length > 4);
+  const words = content.replace(/[^\w\s]/gi, "").split(/\s+/).filter(w => w.length > 4);
   const tag1 = words[0] ? `#${words[0].toLowerCase()}` : "#leadership";
   const tag2 = words[1] ? `#${words[1].toLowerCase()}` : "#growth";
   const fallbackTag = `#${fallbackTopic.toLowerCase().replace(/[^\w]/g, "")}`;
