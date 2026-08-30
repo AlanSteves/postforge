@@ -91,8 +91,7 @@ export async function POST(req: Request) {
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (apiKey && !apiKey.includes("your-gemini-api-key-here") && !apiKey.includes("your_gemini_api_key_here")) {
-      try {
-        const systemInstruction = `You are an expert LinkedIn ghostwriter. Write a viral, high-converting LinkedIn post based strictly on the provided content. 
+      const systemInstruction = `You are an expert LinkedIn ghostwriter. Write a viral, high-converting LinkedIn post based strictly on the provided content. 
 Tone: ${tone}
 Audience: ${audience}
 Length: ${length}
@@ -104,44 +103,59 @@ RULES:
 2. NO introductory or meta conversational headers (do NOT say "Here is your post:").
 3. Include 3-5 relevant hashtags at the bottom.`;
 
-        const geminiRes = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey.trim()}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              systemInstruction: {
-                parts: [{ text: systemInstruction }],
-              },
-              contents: [
-                {
-                  role: "user",
-                  parts: [{ text: contentToFormat }],
+      const geminiModels = [
+        "gemini-3.1-flash-lite-preview",
+        "gemini-3-flash-preview",
+        "gemini-flash-latest",
+        "gemini-1.5-flash",
+      ];
+
+      for (const model of geminiModels) {
+        if (formattedContent) break;
+        try {
+          const geminiRes = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey.trim()}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                systemInstruction: {
+                  parts: [{ text: systemInstruction }],
                 },
-              ],
-              generationConfig: {
-                temperature: 0.7,
-              },
-            }),
-          }
-        );
-
-        const geminiData = await geminiRes.json();
-        const candidateText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (geminiRes.ok && candidateText) {
-          formattedContent = candidateText.trim();
-        } else {
-          aiGenerationFailed = true;
-          console.error(
-            "Gemini API returned error in format route:",
-            geminiRes.status,
-            geminiData?.error?.message || geminiData
+                contents: [
+                  {
+                    role: "user",
+                    parts: [{ text: contentToFormat }],
+                  },
+                ],
+                generationConfig: {
+                  temperature: 0.7,
+                },
+              }),
+            }
           );
+
+          const geminiData = await geminiRes.json();
+          const candidateText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+          if (geminiRes.ok && candidateText) {
+            formattedContent = candidateText.trim();
+            console.log(`Live Gemini Post Formatting generated via model: ${model}`);
+            break;
+          } else {
+            console.error(
+              `Gemini model ${model} format error:`,
+              geminiRes.status,
+              geminiData?.error?.message || geminiData
+            );
+          }
+        } catch (err) {
+          console.error(`Gemini model ${model} format exception:`, err);
         }
-      } catch (err) {
+      }
+
+      if (!formattedContent) {
         aiGenerationFailed = true;
-        console.error("Gemini API network exception in format route:", err);
       }
     } else {
       aiGenerationFailed = true;

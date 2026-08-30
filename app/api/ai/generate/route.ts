@@ -48,47 +48,61 @@ export async function POST(req: Request) {
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (apiKey && !apiKey.includes("your-gemini-api-key-here") && !apiKey.includes("your_gemini_api_key_here")) {
-      try {
-        const systemInstruction = `You are a helpful writing assistant having a conversation about LinkedIn content ideas. Respond naturally and conversationally to the user's request. Do not format this as a finished LinkedIn post — no hashtags, no post structure. Just discuss/draft the idea as you would in a chat.`;
+      const systemInstruction = `You are a helpful writing assistant having a conversation about LinkedIn content ideas. Respond naturally and conversationally to the user's request. Do not format this as a finished LinkedIn post — no hashtags, no post structure. Just discuss/draft the idea as you would in a chat.`;
 
-        const geminiRes = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey.trim()}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              systemInstruction: {
-                parts: [{ text: systemInstruction }],
-              },
-              contents: [
-                {
-                  role: "user",
-                  parts: [{ text: prompt }],
+      const geminiModels = [
+        "gemini-3.1-flash-lite-preview",
+        "gemini-3-flash-preview",
+        "gemini-flash-latest",
+        "gemini-1.5-flash",
+      ];
+
+      for (const model of geminiModels) {
+        if (aiContent) break;
+        try {
+          const geminiRes = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey.trim()}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                systemInstruction: {
+                  parts: [{ text: systemInstruction }],
                 },
-              ],
-              generationConfig: {
-                temperature: 0.7,
-              },
-            }),
-          }
-        );
-
-        const geminiData = await geminiRes.json();
-        const candidateText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (geminiRes.ok && candidateText) {
-          aiContent = candidateText.trim();
-        } else {
-          aiGenerationFailed = true;
-          console.error(
-            "Gemini API returned error in chat generation:",
-            geminiRes.status,
-            geminiData?.error?.message || geminiData
+                contents: [
+                  {
+                    role: "user",
+                    parts: [{ text: prompt }],
+                  },
+                ],
+                generationConfig: {
+                  temperature: 0.7,
+                },
+              }),
+            }
           );
+
+          const geminiData = await geminiRes.json();
+          const candidateText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+          if (geminiRes.ok && candidateText) {
+            aiContent = candidateText.trim();
+            console.log(`Live Gemini Chat response generated via model: ${model}`);
+            break;
+          } else {
+            console.error(
+              `Gemini model ${model} returned error:`,
+              geminiRes.status,
+              geminiData?.error?.message || geminiData
+            );
+          }
+        } catch (err) {
+          console.error(`Gemini model ${model} network exception:`, err);
         }
-      } catch (err) {
+      }
+
+      if (!aiContent) {
         aiGenerationFailed = true;
-        console.error("Gemini API network exception in chat generation:", err);
       }
     } else {
       aiGenerationFailed = true;
@@ -169,5 +183,9 @@ export async function POST(req: Request) {
 
 function generateConversationalResponse(prompt: string, tone: string, audience: string): string {
   const cleanPrompt = prompt.trim();
-  return `That's a fantastic concept for ${audience.toLowerCase()}! Here's how I think we can approach "${cleanPrompt}":\n\nWe should open by challenging a common misconception, followed by 3 core execution principles, and close with an engaging question for your audience.\n\nDouble-click this message whenever you're ready, and I will format it into a complete, publish-ready LinkedIn post for you!`;
+  return `Posting on LinkedIn effectively is all about hooking readers in the first 2 lines and sharing actionable insights.
+
+For "${cleanPrompt}", a great strategy is to discuss the key lessons you've learned, share real examples, and end with an engaging question for ${audience.toLowerCase()}.
+
+Double-click this message whenever you'd like me to format this idea into a polished, high-converting LinkedIn post!`;
 }
