@@ -50,7 +50,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // Generate Content via OpenAI API (if OPENAI_API_KEY set) or natural generator fallback
+    // Call OpenAI Chat Completion API
     let aiContent = "";
     const apiKey = process.env.OPENAI_API_KEY;
 
@@ -60,18 +60,24 @@ export async function POST(req: Request) {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
+            Authorization: `Bearer ${apiKey.trim()}`,
           },
           body: JSON.stringify({
             model: "gpt-4o-mini",
             messages: [
               {
                 role: "system",
-                content: `You are an expert LinkedIn ghostwriter. Write a high-converting LinkedIn post based on the prompt. Tone: ${tone}, Target Audience: ${audience}, Post Length: ${length}, Content Type: ${contentType}, Language: ${language}.
+                content: `You are an expert LinkedIn ghostwriter. Write a viral, high-converting LinkedIn post based strictly on the user's prompt. 
+Tone: ${tone}
+Audience: ${audience}
+Length: ${length}
+Content Type: ${contentType}
+Language: ${language}
+
 RULES:
-1. Provide ONLY the final, natural LinkedIn post copy.
-2. DO NOT include any headings like "AI RESPONSE:", "GENERATED POST:", "LINKEDIN POST:", or conversational preamble.
-3. Include relevant hashtags at the bottom.`,
+1. Provide ONLY the final LinkedIn post copy.
+2. NO introductory or meta conversational headers (do NOT say "Here is your post" or "AI RESPONSE:").
+3. Include 3-5 relevant hashtags at the bottom.`,
               },
               { role: "user", content: prompt },
             ],
@@ -79,17 +85,21 @@ RULES:
           }),
         });
 
-        if (openAiRes.ok) {
-          const openAiData = await openAiRes.json();
-          aiContent = openAiData.choices?.[0]?.message?.content?.trim() || "";
+        const openAiData = await openAiRes.json();
+
+        if (openAiRes.ok && openAiData.choices?.[0]?.message?.content) {
+          aiContent = openAiData.choices[0].message.content.trim();
+        } else {
+          console.error("OpenAI API returned error status:", openAiRes.status, openAiData);
         }
       } catch (err) {
-        console.error("OpenAI API call error, falling back:", err);
+        console.error("OpenAI API network exception:", err);
       }
     }
 
+    // Dynamic prompt-aware generation fallback
     if (!aiContent) {
-      aiContent = generateNaturalLinkedInPost(prompt, tone, audience, length);
+      aiContent = generateDynamicLinkedInPost(prompt, tone, audience);
     }
 
     let userMessageObj = {
@@ -115,7 +125,6 @@ RULES:
       createdAt: new Date().toISOString(),
     };
 
-    // If user is authenticated & database is connected, persist records
     if (user) {
       try {
         if (!conversationId) {
@@ -160,7 +169,7 @@ RULES:
         assistantMessageObj = savedAssistantMsg as any;
         postObj = savedPost as any;
       } catch (dbErr) {
-        console.error("DB persistence error during generation, returning generated content:", dbErr);
+        console.error("DB persistence error during generation:", dbErr);
       }
     }
 
@@ -182,17 +191,20 @@ RULES:
   }
 }
 
-function generateNaturalLinkedInPost(prompt: string, tone: string, audience: string, length: string): string {
-  const tonePrefix = tone.toLowerCase().includes("bold")
-    ? "The biggest lie in small business? \"Build it and they will come.\""
-    : "Here is what nobody tells you about starting out:";
-  
-  const hook = `I spent months refining an idea without talking to users. Zero marketing. Zero feedback loop.\n\nWhen we launched? Absolute silence. 🦗`;
-  const lessons = `Here are 3 harsh realities every ${audience.toLowerCase()} needs to internalize:\n\n1. Distribution is just as crucial as product development.\n2. Building in public creates your customer base before launch.\n3. Perfection is the enemy of momentum.\n\n${prompt}`;
-  const callToAction = `Don't wait for perfect. Ship early, gather feedback, and iterate.\n\nWhat’s the single biggest lesson you learned the hard way? Let's discuss in the comments below! 👇`;
-  const tags = `#${audience.toLowerCase().replace(/\s+/g, "")} #startup #buildinginpublic #ai #innovation`;
+function generateDynamicLinkedInPost(prompt: string, tone: string, audience: string): string {
+  const cleanPrompt = prompt.trim();
+  const topicTitle = cleanPrompt.length > 50 ? cleanPrompt.slice(0, 47) + "..." : cleanPrompt;
 
-  return `${tonePrefix}\n\n${hook}\n\n${lessons}\n\n${callToAction}\n\n${tags}`;
+  const hook = tone.toLowerCase().includes("bold")
+    ? `Most ${audience.toLowerCase()} get this completely wrong when thinking about: "${topicTitle}"`
+    : `A key breakdown for ${audience.toLowerCase()} on: "${topicTitle}"`;
+
+  const body = `Here is what experience has taught me:\n\n1. "${cleanPrompt}" requires clear focus and execution.\n2. Small daily improvements compound faster than sporadic efforts.\n3. The secret is consistency, not complexity.`;
+
+  const cta = `What is your take on this? Drop your thoughts below! 👇`;
+  const hashtags = extractHashtags(cleanPrompt, audience).join(" ");
+
+  return `${hook}\n\n${body}\n\n${cta}\n\n${hashtags}`;
 }
 
 function extractHashtags(content: string, fallbackTopic: string): string[] {
@@ -201,5 +213,6 @@ function extractHashtags(content: string, fallbackTopic: string): string[] {
   if (matches && matches.length > 0) {
     return Array.from(new Set(matches));
   }
-  return [`#${fallbackTopic.toLowerCase().replace(/\s+/g, "")}`, "#ai", "#innovation", "#growth"];
+  const cleanWord = fallbackTopic.toLowerCase().replace(/[^\w]/g, "");
+  return [`#${cleanWord || "leadership"}`, "#business", "#strategy", "#growth"];
 }
