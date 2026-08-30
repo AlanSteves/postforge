@@ -28,22 +28,15 @@ export async function POST(req: Request) {
 
     let tone = "Bold";
     let audience = "Founders";
-    let length = "Medium";
-    let contentType = "Thought Leadership";
-    let language = "English";
-    let preferences = null;
 
     if (user) {
       try {
-        preferences = await prisma.preference.findUnique({
+        const preferences = await prisma.preference.findUnique({
           where: { userId: user.id },
         });
         if (preferences) {
           tone = preferences.tone || tone;
           audience = preferences.audience || audience;
-          length = preferences.length || length;
-          contentType = preferences.contentType || contentType;
-          language = preferences.language || language;
         }
       } catch (err) {
         console.error("Failed to load user preferences:", err);
@@ -54,19 +47,9 @@ export async function POST(req: Request) {
     let aiGenerationFailed = false;
     const apiKey = process.env.GEMINI_API_KEY;
 
-    if (apiKey && !apiKey.includes("your-gemini-api-key-here")) {
+    if (apiKey && !apiKey.includes("your-gemini-api-key-here") && !apiKey.includes("your_gemini_api_key_here")) {
       try {
-        const systemInstruction = `You are an expert LinkedIn ghostwriter. Write a viral, high-converting LinkedIn post based strictly on the user's prompt.
-Tone: ${tone}
-Audience: ${audience}
-Length: ${length}
-Content Type: ${contentType}
-Language: ${language}
-
-RULES:
-1. Provide ONLY the final LinkedIn post copy.
-2. NO introductory or meta conversational headers.
-3. Include 3-5 relevant hashtags at the bottom.`;
+        const systemInstruction = `You are a helpful writing assistant having a conversation about LinkedIn content ideas. Respond naturally and conversationally to the user's request. Do not format this as a finished LinkedIn post — no hashtags, no post structure. Just discuss/draft the idea as you would in a chat.`;
 
         const geminiRes = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey.trim()}`,
@@ -91,32 +74,29 @@ RULES:
         );
 
         const geminiData = await geminiRes.json();
-
-        const candidateText =
-          geminiData?.candidates?.[0]?.content?.parts?.[0]?.text;
+        const candidateText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text;
 
         if (geminiRes.ok && candidateText) {
           aiContent = candidateText.trim();
         } else {
           aiGenerationFailed = true;
           console.error(
-            "Gemini API returned error:",
+            "Gemini API returned error in chat generation:",
             geminiRes.status,
             geminiData?.error?.message || geminiData
           );
         }
       } catch (err) {
         aiGenerationFailed = true;
-        console.error("Gemini API network exception:", err);
+        console.error("Gemini API network exception in chat generation:", err);
       }
     } else {
       aiGenerationFailed = true;
     }
 
-    // Fallback generation engine — only used if Gemini call failed or key is missing.
-    // aiGenerationFailed is surfaced in the response so the client can flag degraded output.
+    // Natural conversational fallback if API is unavailable
     if (!aiContent) {
-      aiContent = generateRichLinkedInPost(prompt, tone, audience);
+      aiContent = generateConversationalResponse(prompt, tone, audience);
     }
 
     let userMessageObj = {
@@ -130,15 +110,6 @@ RULES:
       id: `msg-ai-${Date.now()}`,
       content: aiContent,
       role: "ASSISTANT",
-      createdAt: new Date().toISOString(),
-    };
-
-    let postObj = {
-      id: `post-${Date.now()}`,
-      content: aiContent,
-      hashtags: extractHashtags(aiContent, audience),
-      status: "DRAFT",
-      imageUrl: imagePreview || null,
       createdAt: new Date().toISOString(),
     };
 
@@ -171,22 +142,10 @@ RULES:
           },
         });
 
-        const savedPost = await prisma.post.create({
-          data: {
-            userId: user.id,
-            conversationId,
-            content: aiContent,
-            hashtags: extractHashtags(aiContent, audience),
-            imageUrl: imagePreview || null,
-            status: "DRAFT",
-          },
-        });
-
         userMessageObj = savedUserMsg as any;
         assistantMessageObj = savedAssistantMsg as any;
-        postObj = savedPost as any;
       } catch (dbErr) {
-        console.error("DB persistence error during generation:", dbErr);
+        console.error("DB persistence error during chat generation:", dbErr);
       }
     }
 
@@ -197,48 +156,18 @@ RULES:
         conversationId: conversationId || `conv-${Date.now()}`,
         userMessage: userMessageObj,
         assistantMessage: assistantMessageObj,
-        post: postObj,
       },
     });
   } catch (error) {
-    console.error("AI Generation error:", error);
+    console.error("AI Chat Generation error:", error);
     return NextResponse.json(
-      { success: false, message: "Failed to generate post" },
+      { success: false, message: "Failed to generate chat reply" },
       { status: 500 }
     );
   }
 }
 
-function generateRichLinkedInPost(prompt: string, tone: string, audience: string): string {
+function generateConversationalResponse(prompt: string, tone: string, audience: string): string {
   const cleanPrompt = prompt.trim();
-  const hash = cleanPrompt.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const patternIndex = hash % 3;
-
-  const topicKeywords = cleanPrompt
-    .replace(/[^\w\s]/gi, "")
-    .split(/\s+/)
-    .filter((w) => w.length > 3)
-    .slice(0, 4)
-    .join(" ");
-
-  if (patternIndex === 0) {
-    return `Stop scrolling if you care about: ${cleanPrompt}\n\nHere is what separates top-performing ${audience.toLowerCase()} from the rest:\n\n📌 1. Actionable Strategy: Focus heavily on ${topicKeywords || "execution"}.\n📌 2. Systemize Early: Don't rely on memory; build reusable workflows.\n📌 3. Audience Value: Solve real problems instead of posting fluff.\n\nKey Takeaway: ${cleanPrompt} is all about consistency and leverage.\n\nHow are you tackling this in your workflow? Share your thoughts below! 👇\n\n${extractHashtags(cleanPrompt, audience).join(" ")}`;
-  } else if (patternIndex === 1) {
-    return `Unpopular opinion regarding ${cleanPrompt}:\n\nMost people try to overcomplicate this. They spend weeks planning and zero time shipping.\n\nHere is a 3-step framework to master it:\n\nStep 1: Simplify your initial approach to ${topicKeywords || "the core goal"}.\nStep 2: Gather real feedback from your ${audience.toLowerCase()} network.\nStep 3: Double down on what moves the needle.\n\nWhat’s your biggest takeaway here? Let's discuss in the comments! 💬\n\n${extractHashtags(cleanPrompt, audience).join(" ")}`;
-  } else {
-    return `I used to struggle with "${cleanPrompt}" until I learned this fundamental shift.\n\nIf you want to excel as a ${audience.toLowerCase()}, keep these 3 principles top of mind:\n\n💡 Principle 1: Clarity beats complexity every single time.\n💡 Principle 2: Feedback loops are your strongest growth driver.\n💡 Principle 3: Execution on ${topicKeywords || "your goal"} is what yields real impact.\n\nWhich of these 3 principles resonates most with you? 👇\n\n${extractHashtags(cleanPrompt, audience).join(" ")}`;
-  }
-}
-
-function extractHashtags(content: string, fallbackTopic: string): string[] {
-  const regex = /#[\w]+/g;
-  const matches = content.match(regex);
-  if (matches && matches.length > 0) {
-    return Array.from(new Set(matches));
-  }
-  const words = content.replace(/[^\w\s]/gi, "").split(/\s+/).filter(w => w.length > 4);
-  const tag1 = words[0] ? `#${words[0].toLowerCase()}` : "#leadership";
-  const tag2 = words[1] ? `#${words[1].toLowerCase()}` : "#growth";
-  const fallbackTag = `#${fallbackTopic.toLowerCase().replace(/[^\w]/g, "")}`;
-  return Array.from(new Set([tag1, tag2, fallbackTag, "#business", "#innovation"]));
+  return `That's a fantastic concept for ${audience.toLowerCase()}! Here's how I think we can approach "${cleanPrompt}":\n\nWe should open by challenging a common misconception, followed by 3 core execution principles, and close with an engaging question for your audience.\n\nDouble-click this message whenever you're ready, and I will format it into a complete, publish-ready LinkedIn post for you!`;
 }

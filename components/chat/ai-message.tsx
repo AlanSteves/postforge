@@ -6,12 +6,32 @@ import { ChatMessage, usePostContext } from "@/context/post-context";
 
 export const AiMessage: React.FC<{ message: ChatMessage }> = ({ message }) => {
   const router = useRouter();
-  const { updatePostContent } = usePostContext();
+  const { formatMessageToPost, updatePostContent } = usePostContext();
   const [copied, setCopied] = useState(false);
+  const [isFormatting, setIsFormatting] = useState(false);
+
+  const handleFormatAndNavigate = async () => {
+    if (isFormatting) return;
+    setIsFormatting(true);
+    try {
+      const post = await formatMessageToPost(message.id, message.text);
+      if (post && post.content) {
+        updatePostContent(post.content);
+      } else {
+        updatePostContent(message.text);
+      }
+      router.push("/post-preview");
+    } catch (err) {
+      console.error("Failed to format post on double click:", err);
+      updatePostContent(message.text);
+      router.push("/post-preview");
+    } finally {
+      setIsFormatting(false);
+    }
+  };
 
   const handleDoubleClick = () => {
-    updatePostContent(message.text);
-    router.push("/post-preview");
+    handleFormatAndNavigate();
   };
 
   const handleCopy = (e: React.MouseEvent) => {
@@ -23,8 +43,7 @@ export const AiMessage: React.FC<{ message: ChatMessage }> = ({ message }) => {
 
   const handlePreviewClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    updatePostContent(message.text);
-    router.push("/post-preview");
+    handleFormatAndNavigate();
   };
 
   return (
@@ -43,7 +62,7 @@ export const AiMessage: React.FC<{ message: ChatMessage }> = ({ message }) => {
       {/* Main Response Box with double click interaction */}
       <div
         onDoubleClick={handleDoubleClick}
-        title="Double-click to preview this post on LinkedIn"
+        title="Double-click to format into a full LinkedIn post & preview"
         className="w-full bg-[#ffffff] text-[#1b1c1a] border-[3px] border-[#000000] p-5 shadow-[5px_5px_0px_0px_#000000] cursor-pointer hover:border-[#0062a0] transition-colors relative group/box"
       >
         <div className="font-medium text-sm sm:text-base leading-relaxed whitespace-pre-wrap">
@@ -53,8 +72,14 @@ export const AiMessage: React.FC<{ message: ChatMessage }> = ({ message }) => {
         {/* Double-Click Hint Banner & Quick Actions */}
         <div className="mt-4 pt-3 border-t-[3px] border-[#000000] flex flex-wrap justify-between items-center gap-2 bg-[#FAF9F5] -mx-5 -mb-5 p-3">
           <div className="flex items-center gap-1.5 text-xs font-bold text-[#0062a0]">
-            <span className="material-symbols-outlined text-base animate-pulse">touch_app</span>
-            <span>DOUBLE-CLICK TO PREVIEW →</span>
+            <span className="material-symbols-outlined text-base animate-pulse">
+              {isFormatting ? "hourglass_top" : "touch_app"}
+            </span>
+            <span>
+              {isFormatting
+                ? "FORMATTING LINKEDIN POST..."
+                : "DOUBLE-CLICK TO FORMAT & PREVIEW →"}
+            </span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -70,9 +95,10 @@ export const AiMessage: React.FC<{ message: ChatMessage }> = ({ message }) => {
 
             <button
               onClick={handlePreviewClick}
-              className="text-xs font-bold py-1 px-3 border-[2px] border-[#000] bg-[#74b9ff] text-[#004979] hover:bg-[#62a7ed] shadow-[2px_2px_0px_0px_#000] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none flex items-center gap-1"
+              disabled={isFormatting}
+              className="text-xs font-bold py-1 px-3 border-[2px] border-[#000] bg-[#74b9ff] text-[#004979] hover:bg-[#62a7ed] shadow-[2px_2px_0px_0px_#000] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none flex items-center gap-1 disabled:opacity-50"
             >
-              <span>Preview →</span>
+              <span>{isFormatting ? "Formatting..." : "Format & Preview →"}</span>
             </button>
           </div>
         </div>

@@ -109,10 +109,10 @@ export function useChat() {
       const json = await res.json();
 
       if (json.success && json.data) {
-        const { conversationId, assistantMessage, post } = json.data;
+        const { conversationId, assistantMessage } = json.data;
         if (conversationId) setActiveConversationId(conversationId);
 
-        const aiMsgText = assistantMessage.content || assistantMessage.text || "Post generated successfully.";
+        const aiMsgText = assistantMessage.content || assistantMessage.text || "I've drafted some initial thoughts.";
         const aiMsg: ChatMessage = {
           id: assistantMessage.id || `ai-${Date.now()}`,
           sender: "ai",
@@ -130,7 +130,7 @@ export function useChat() {
         ]);
 
         fetchConversations();
-        return post;
+        return assistantMessage;
       }
     } catch (err) {
       console.error("Send message error:", err);
@@ -138,8 +138,8 @@ export function useChat() {
       setIsGenerating(false);
     }
 
-    // Fallback response if network or server error occurs
-    const fallbackText = `The biggest lie in small business? "Build it and they will come."\n\nHere are 3 harsh realities every founder needs to internalize:\n\n1. Distribution is just as crucial as product development.\n2. Building in public creates your customer base before launch.\n3. Perfection is the enemy of momentum.\n\n${prompt}\n\nWhat’s the single biggest lesson you learned the hard way? Let's discuss in the comments below! 👇\n\n#startup #buildinginpublic #ai #innovation`;
+    // Fallback response if server error occurs
+    const fallbackText = `That's a great concept for your network! Let's explore how to structure it.\n\nDouble-click this message whenever you're ready to turn it into a publish-ready LinkedIn post!`;
     
     const fallbackAiMsg: ChatMessage = {
       id: `ai-fallback-${Date.now()}`,
@@ -153,6 +153,27 @@ export function useChat() {
     return null;
   };
 
+  const formatMessageToPost = async (messageId: string, content?: string) => {
+    try {
+      const res = await fetch("/api/posts/format", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messageId,
+          content,
+          conversationId: activeConversationId || undefined,
+        }),
+      });
+      const json = await res.json();
+      if (json.success && json.data?.post) {
+        return json.data.post;
+      }
+    } catch (err) {
+      console.error("Format message error:", err);
+    }
+    return null;
+  };
+
   return {
     conversations,
     activeConversationId,
@@ -160,6 +181,7 @@ export function useChat() {
     isGenerating,
     loading,
     sendMessage,
+    formatMessageToPost,
     startNewChat,
     loadConversationDetail,
     refreshConversations: fetchConversations,

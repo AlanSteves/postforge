@@ -32,6 +32,7 @@ interface PostContextType {
   signout: () => Promise<void>;
   publishToLinkedIn: () => Promise<boolean>;
   openPostPreview: (content?: string, hashtags?: string[]) => void;
+  formatMessageToPost: (messageId: string, content?: string) => Promise<any>;
 }
 
 const PostContext = createContext<PostContextType | undefined>(undefined);
@@ -44,6 +45,7 @@ export const PostProvider: React.FC<{ children: React.ReactNode }> = ({ children
     messages,
     isGenerating,
     sendMessage,
+    formatMessageToPost,
     startNewChat,
     clearMessages,
   } = useChat();
@@ -79,16 +81,7 @@ export const PostProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const generatePostHandler = async (prompt: string) => {
     if (!prompt.trim()) return;
-    const post = await sendMessage(prompt, attachedImage);
-    if (post) {
-      setPostData({
-        id: post.id,
-        content: post.content,
-        hashtags: post.hashtags || [],
-        imageUrl: post.imageUrl || attachedImage || null,
-        status: post.status,
-      });
-    }
+    await sendMessage(prompt, attachedImage);
     setAttachedImage(null);
   };
 
@@ -124,6 +117,7 @@ export const PostProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signout,
         publishToLinkedIn: publishToLinkedInHandler,
         openPostPreview,
+        formatMessageToPost,
       }}
     >
       {children}
