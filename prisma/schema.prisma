@@ -1,0 +1,137 @@
+// Prisma schema for PostForge AI
+
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  USER
+  ASSISTANT
+}
+
+enum PostStatus {
+  DRAFT
+  READY
+  PUBLISHED
+  FAILED
+}
+
+enum PublishStatus {
+  SUCCESS
+  FAILED
+  PENDING
+}
+
+model User {
+  id               String           @id @default(cuid())
+  email            String           @unique
+  name             String?
+  passwordHash     String
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  preference       Preference?
+  conversations    Conversation[]
+  posts            Post[]
+  linkedInAccount  LinkedInAccount?
+  publishHistories PublishHistory[]
+
+  @@index([email])
+}
+
+model Preference {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tone        String   @default("professional")
+  audience    String   @default("founders")
+  length      String   @default("medium")
+  contentType String   @default("thought-leadership")
+  language    String   @default("en")
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Conversation {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String    @default("New Conversation")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  messages  Message[]
+  posts     Post[]
+
+  @@index([userId])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           Role
+  content        String       @db.Text
+  imagePreview   String?
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId])
+}
+
+model Post {
+  id               String           @id @default(cuid())
+  userId           String
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversationId   String?
+  conversation     Conversation?    @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  content          String           @db.Text
+  hashtags         String[]         @default([])
+  imageUrl         String?
+  status           PostStatus       @default(DRAFT)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  publishHistories PublishHistory[]
+
+  @@index([userId])
+  @@index([conversationId])
+}
+
+model LinkedInAccount {
+  id               String           @id @default(cuid())
+  userId           String           @unique
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  linkedinId       String
+  name             String?
+  email            String?
+  accessToken      String           @db.Text
+  refreshToken     String?          @db.Text
+  expiresAt        DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  publishHistories PublishHistory[]
+
+  @@index([userId])
+  @@index([linkedinId])
+}
+
+model PublishHistory {
+  id                String           @id @default(cuid())
+  userId            String
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId            String
+  post              Post             @relation(fields: [postId], references: [id], onDelete: Cascade)
+  linkedInAccountId String?
+  linkedInAccount   LinkedInAccount? @relation(fields: [linkedInAccountId], references: [id], onDelete: SetNull)
+  status            PublishStatus    @default(PENDING)
+  platformPostId    String?
+  errorMessage      String?          @db.Text
+  publishedAt       DateTime         @default(now())
+
+  @@index([userId])
+  @@index([postId])
+  @@index([linkedInAccountId])
+}
