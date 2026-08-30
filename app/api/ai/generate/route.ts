@@ -52,9 +52,10 @@ export async function POST(req: Request) {
 
     // Google Gemini API Generation Engine
     let aiContent = "";
+    let isDegraded = false;
     const geminiKey = process.env.GEMINI_API_KEY;
 
-    if (geminiKey && !geminiKey.includes("your_gemini_api_key_here")) {
+    if (geminiKey && !geminiKey.includes("your-gemini-api-key-here") && !geminiKey.includes("your_gemini_api_key_here")) {
       const systemPrompt = `You are an expert LinkedIn ghostwriter. Write a viral, high-converting LinkedIn post based strictly on the user's prompt. 
 Tone: ${tone}
 Audience: ${audience}
@@ -82,11 +83,18 @@ RULES:
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
+                systemInstruction: {
+                  parts: [{ text: systemPrompt }],
+                },
                 contents: [
                   {
-                    parts: [{ text: `${systemPrompt}\n\nUSER PROMPT: ${prompt}` }],
+                    role: "user",
+                    parts: [{ text: prompt }],
                   },
                 ],
+                generationConfig: {
+                  temperature: 0.7,
+                },
               }),
             }
           );
@@ -94,7 +102,6 @@ RULES:
           const geminiData = await geminiRes.json();
           if (geminiRes.ok && geminiData.candidates?.[0]?.content?.parts?.[0]?.text) {
             aiContent = geminiData.candidates[0].content.parts[0].text.trim();
-            console.log(`Successfully generated post using Google Gemini model: ${model}`);
             break;
           } else {
             console.error(`Gemini model ${model} response:`, geminiRes.status, geminiData.error?.message || geminiData);
@@ -108,6 +115,7 @@ RULES:
     // Dynamic prompt-aware local fallback if API key is unconfigured or unreachable
     if (!aiContent) {
       aiContent = generateRichLinkedInPost(prompt, tone, audience);
+      isDegraded = true;
     }
 
     let userMessageObj = {
@@ -183,6 +191,7 @@ RULES:
 
     return NextResponse.json({
       success: true,
+      degraded: isDegraded,
       data: {
         conversationId: conversationId || `conv-${Date.now()}`,
         userMessage: userMessageObj,
