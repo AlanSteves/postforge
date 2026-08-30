@@ -21,23 +21,21 @@ export interface SafeLinkedInAccount {
 /**
  * Strips passwordHash from user records before returning to client.
  */
-export function sanitizeUser<T extends { passwordHash?: string }>(
-  user: T
-): Omit<T, "passwordHash"> {
+export function sanitizeUser(user: any): SafeUser {
+  if (!user) return user;
   const { passwordHash, ...safeUser } = user;
-  return safeUser;
+  return safeUser as SafeUser;
 }
 
 /**
  * Strips accessToken and refreshToken from LinkedInAccount records.
  * Returns only safe account information and connection status flag.
  */
-export function sanitizeLinkedInAccount<
-  T extends { accessToken?: string; refreshToken?: string | null }
->(account: T): Omit<T, "accessToken" | "refreshToken"> & { isConnected: boolean } {
+export function sanitizeLinkedInAccount(account: any): SafeLinkedInAccount {
+  if (!account) return account;
   const { accessToken, refreshToken, ...safeAccount } = account;
   return {
     ...safeAccount,
     isConnected: Boolean(accessToken && accessToken.length > 0),
-  };
+  } as SafeLinkedInAccount;
 }
