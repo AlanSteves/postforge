@@ -50,24 +50,12 @@ export async function POST(req: Request) {
       }
     }
 
-    // Call OpenAI Chat Completion API
+    // Google Gemini API Generation Engine
     let aiContent = "";
-    const apiKey = process.env.OPENAI_API_KEY;
+    const geminiKey = process.env.GEMINI_API_KEY;
 
-    if (apiKey && !apiKey.includes("your-openai-api-key-here")) {
-      try {
-        const openAiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey.trim()}`,
-          },
-          body: JSON.stringify({
-            model: "gpt-4o-mini",
-            messages: [
-              {
-                role: "system",
-                content: `You are an expert LinkedIn ghostwriter. Write a viral, high-converting LinkedIn post based strictly on the user's prompt. 
+    if (geminiKey && !geminiKey.includes("your_gemini_api_key_here")) {
+      const systemPrompt = `You are an expert LinkedIn ghostwriter. Write a viral, high-converting LinkedIn post based strictly on the user's prompt. 
 Tone: ${tone}
 Audience: ${audience}
 Length: ${length}
@@ -76,30 +64,50 @@ Language: ${language}
 
 RULES:
 1. Provide ONLY the final LinkedIn post copy.
-2. NO introductory or meta conversational headers (do NOT say "Here is your post" or "AI RESPONSE:").
-3. Include 3-5 relevant hashtags at the bottom.`,
-              },
-              { role: "user", content: prompt },
-            ],
-            temperature: 0.7,
-          }),
-        });
+2. DO NOT include any conversational preamble or meta headings (e.g. do NOT write "Here is your post:").
+3. Include 3-5 relevant hashtags at the bottom.`;
 
-        const openAiData = await openAiRes.json();
+      const geminiModels = [
+        "gemini-3.1-flash-lite-preview",
+        "gemini-3-flash-preview",
+        "gemini-flash-latest",
+      ];
 
-        if (openAiRes.ok && openAiData.choices?.[0]?.message?.content) {
-          aiContent = openAiData.choices[0].message.content.trim();
-        } else {
-          console.error("OpenAI API returned error status:", openAiRes.status, openAiData);
+      for (const model of geminiModels) {
+        if (aiContent) break;
+        try {
+          const geminiRes = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey.trim()}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contents: [
+                  {
+                    parts: [{ text: `${systemPrompt}\n\nUSER PROMPT: ${prompt}` }],
+                  },
+                ],
+              }),
+            }
+          );
+
+          const geminiData = await geminiRes.json();
+          if (geminiRes.ok && geminiData.candidates?.[0]?.content?.parts?.[0]?.text) {
+            aiContent = geminiData.candidates[0].content.parts[0].text.trim();
+            console.log(`Successfully generated post using Google Gemini model: ${model}`);
+            break;
+          } else {
+            console.error(`Gemini model ${model} response:`, geminiRes.status, geminiData.error?.message || geminiData);
+          }
+        } catch (geminiErr) {
+          console.error(`Gemini model ${model} exception:`, geminiErr);
         }
-      } catch (err) {
-        console.error("OpenAI API network exception:", err);
       }
     }
 
-    // Dynamic prompt-aware generation fallback
+    // Dynamic prompt-aware local fallback if API key is unconfigured or unreachable
     if (!aiContent) {
-      aiContent = generateDynamicLinkedInPost(prompt, tone, audience);
+      aiContent = generateRichLinkedInPost(prompt, tone, audience);
     }
 
     let userMessageObj = {
@@ -191,20 +199,25 @@ RULES:
   }
 }
 
-function generateDynamicLinkedInPost(prompt: string, tone: string, audience: string): string {
+function generateRichLinkedInPost(prompt: string, tone: string, audience: string): string {
   const cleanPrompt = prompt.trim();
-  const topicTitle = cleanPrompt.length > 50 ? cleanPrompt.slice(0, 47) + "..." : cleanPrompt;
+  const hash = cleanPrompt.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const patternIndex = hash % 3;
 
-  const hook = tone.toLowerCase().includes("bold")
-    ? `Most ${audience.toLowerCase()} get this completely wrong when thinking about: "${topicTitle}"`
-    : `A key breakdown for ${audience.toLowerCase()} on: "${topicTitle}"`;
+  const topicKeywords = cleanPrompt
+    .replace(/[^\w\s]/gi, "")
+    .split(/\s+/)
+    .filter((w) => w.length > 3)
+    .slice(0, 4)
+    .join(" ");
 
-  const body = `Here is what experience has taught me:\n\n1. "${cleanPrompt}" requires clear focus and execution.\n2. Small daily improvements compound faster than sporadic efforts.\n3. The secret is consistency, not complexity.`;
-
-  const cta = `What is your take on this? Drop your thoughts below! 👇`;
-  const hashtags = extractHashtags(cleanPrompt, audience).join(" ");
-
-  return `${hook}\n\n${body}\n\n${cta}\n\n${hashtags}`;
+  if (patternIndex === 0) {
+    return `Stop scrolling if you care about: ${cleanPrompt}\n\nHere is what separates top-performing ${audience.toLowerCase()} from the rest:\n\n📌 1. Actionable Strategy: Focus heavily on ${topicKeywords || "execution"}.\n📌 2. Systemize Early: Don't rely on memory; build reusable workflows.\n📌 3. Audience Value: Solve real problems instead of posting fluff.\n\nKey Takeaway: ${cleanPrompt} is all about consistency and leverage.\n\nHow are you tackling this in your workflow? Share your thoughts below! 👇\n\n${extractHashtags(cleanPrompt, audience).join(" ")}`;
+  } else if (patternIndex === 1) {
+    return `Unpopular opinion regarding ${cleanPrompt}:\n\nMost people try to overcomplicate this. They spend weeks planning and zero time shipping.\n\nHere is a 3-step framework to master it:\n\nStep 1: Simplify your initial approach to ${topicKeywords || "the core goal"}.\nStep 2: Gather real feedback from your ${audience.toLowerCase()} network.\nStep 3: Double down on what moves the needle.\n\nWhat’s your biggest takeaway here? Let's discuss in the comments! 💬\n\n${extractHashtags(cleanPrompt, audience).join(" ")}`;
+  } else {
+    return `I used to struggle with "${cleanPrompt}" until I learned this fundamental shift.\n\nIf you want to excel as a ${audience.toLowerCase()}, keep these 3 principles top of mind:\n\n💡 Principle 1: Clarity beats complexity every single time.\n💡 Principle 2: Feedback loops are your strongest growth driver.\n💡 Principle 3: Execution on ${topicKeywords || "your goal"} is what yields real impact.\n\nWhich of these 3 principles resonates most with you? 👇\n\n${extractHashtags(cleanPrompt, audience).join(" ")}`;
+  }
 }
 
 function extractHashtags(content: string, fallbackTopic: string): string[] {
@@ -213,6 +226,9 @@ function extractHashtags(content: string, fallbackTopic: string): string[] {
   if (matches && matches.length > 0) {
     return Array.from(new Set(matches));
   }
-  const cleanWord = fallbackTopic.toLowerCase().replace(/[^\w]/g, "");
-  return [`#${cleanWord || "leadership"}`, "#business", "#strategy", "#growth"];
+  const words = content.replace(/[^\w\s]/gi, "").split(/\s+/).filter((w) => w.length > 4);
+  const tag1 = words[0] ? `#${words[0].toLowerCase()}` : "#leadership";
+  const tag2 = words[1] ? `#${words[1].toLowerCase()}` : "#growth";
+  const fallbackTag = `#${fallbackTopic.toLowerCase().replace(/[^\w]/g, "")}`;
+  return Array.from(new Set([tag1, tag2, fallbackTag, "#business", "#innovation"]));
 }
