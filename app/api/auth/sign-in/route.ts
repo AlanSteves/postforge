@@ -50,10 +50,11 @@ export async function POST(req: Request) {
       { success: true, message: "Signed in successfully" },
       { status: 200 }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error("Sign in error:", error);
+    const msg = error?.message || "Something went wrong";
     return NextResponse.json(
-      { success: false, message: "Something went wrong" },
+      { success: false, message: `Sign in error: ${msg}` },
       { status: 500 }
     );
   }

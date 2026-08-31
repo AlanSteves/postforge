@@ -68,10 +68,11 @@ export async function POST(req: Request) {
       { success: true, message: "Account created successfully" },
       { status: 201 }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error("Sign up error:", error);
+    const msg = error?.message || "Something went wrong";
     return NextResponse.json(
-      { success: false, message: "Something went wrong" },
+      { success: false, message: `Sign up error: ${msg}` },
       { status: 500 }
     );
   }

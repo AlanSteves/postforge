@@ -39,10 +39,11 @@ export async function GET() {
         authorAvatar: sanitized.avatarUrl || "https://lh3.googleusercontent.com/aida-public/AB6AXuBe1MUwvl06PX--f2-qUTHmMy1BbrQoIyv2t2NWjyxrGL-XX4K_qsPKClPxCSklf6Mnx9VdgVSbkHfaW-_ZpmISkSjXykVP1RfStUXnU7PqyXSdcPPliouqTZTIAhwNZsKo_U6CyoJeL6YaTkq2PW8o_MRPMVhFSwle50JcsFuENM7EnMECwToZ7fZoWbRyAtHCt-LRvlEAQk0xXnZa9TS5O_jxGrAjF6mxgXojUZw4GLG0g6uMMI-jRg",
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("GET LinkedIn account error:", error);
+    const msg = error?.message || "Something went wrong";
     return NextResponse.json(
-      { success: false, message: "Something went wrong" },
+      { success: false, message: `LinkedIn account error: ${msg}` },
       { status: 500 }
     );
   }

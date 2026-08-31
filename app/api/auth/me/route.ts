@@ -15,10 +15,11 @@ export async function GET() {
       success: true,
       data: user,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Get current user error:", error);
+    const msg = error?.message || "Something went wrong";
     return NextResponse.json(
-      { success: false, message: "Something went wrong" },
+      { success: false, message: `Auth error: ${msg}` },
       { status: 500 }
     );
   }
