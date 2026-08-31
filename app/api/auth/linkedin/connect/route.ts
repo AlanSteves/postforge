@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const user = await getCurrentUser();
     if (!user) {
@@ -11,11 +11,15 @@ export async function GET() {
       );
     }
 
+    const { searchParams } = new URL(req.url);
+    const simulate = searchParams.get("simulate") === "true";
+
     const clientId = process.env.LINKEDIN_CLIENT_ID;
     const redirectUri = process.env.LINKEDIN_REDIRECT_URI || "http://localhost:3000/api/auth/linkedin/callback";
 
-    if (clientId) {
-      const scope = encodeURIComponent("openid profile email w_member_social");
+    if (clientId && !simulate) {
+      const scopeStr = process.env.LINKEDIN_SCOPES || "openid profile email w_member_social";
+      const scope = encodeURIComponent(scopeStr);
       const linkedinAuthUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${user.id}&scope=${scope}`;
       return NextResponse.redirect(linkedinAuthUrl);
     }

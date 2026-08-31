@@ -1,11 +1,120 @@
-// Prisma schema for PostForge AI
+generator client {
+  provider = "prisma-client-js"
+}
 
 datasource db {
   provider = "postgresql"
 }
 
-generator client {
-  provider = "prisma-client-js"
+model User {
+  id               String           @id @default(cuid())
+  email            String           @unique
+  name             String?
+  passwordHash     String
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  conversations    Conversation[]
+  linkedInAccount  LinkedInAccount?
+  posts            Post[]
+  preference       Preference?
+  publishHistories PublishHistory[]
+
+  @@index([email])
+}
+
+model Preference {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  tone        String   @default("professional")
+  audience    String   @default("founders")
+  length      String   @default("medium")
+  contentType String   @default("thought-leadership")
+  language    String   @default("en")
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Conversation {
+  id        String    @id @default(cuid())
+  userId    String
+  title     String    @default("New Conversation")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  Message[]
+  posts     Post[]
+
+  @@index([userId])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  role           Role
+  content        String
+  imagePreview   String?
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+}
+
+model Post {
+  id               String           @id @default(cuid())
+  userId           String
+  conversationId   String?
+  content          String
+  hashtags         String[]         @default([])
+  imageUrl         String?
+  status           PostStatus       @default(DRAFT)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  conversation     Conversation?    @relation(fields: [conversationId], references: [id])
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  publishHistories PublishHistory[]
+
+  @@index([userId])
+  @@index([conversationId])
+}
+
+model LinkedInAccount {
+  id               String           @id @default(cuid())
+  userId           String           @unique
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  linkedinId       String
+  name             String?
+  email            String?
+  avatarUrl        String?          @db.Text
+  headline         String?          @db.Text
+  accessToken      String           @db.Text
+  refreshToken     String?          @db.Text
+  expiresAt        DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  publishHistories PublishHistory[]
+
+  @@index([userId])
+  @@index([linkedinId])
+}
+
+model PublishHistory {
+  id                String           @id @default(cuid())
+  userId            String
+  postId            String
+  linkedInAccountId String?
+  status            PublishStatus    @default(PENDING)
+  platformPostId    String?
+  errorMessage      String?
+  publishedAt       DateTime         @default(now())
+  linkedInAccount   LinkedInAccount? @relation(fields: [linkedInAccountId], references: [id])
+  post              Post             @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([postId])
+  @@index([linkedInAccountId])
 }
 
 enum Role {
@@ -24,114 +133,4 @@ enum PublishStatus {
   SUCCESS
   FAILED
   PENDING
-}
-
-model User {
-  id               String           @id @default(cuid())
-  email            String           @unique
-  name             String?
-  passwordHash     String
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
-
-  preference       Preference?
-  conversations    Conversation[]
-  posts            Post[]
-  linkedInAccount  LinkedInAccount?
-  publishHistories PublishHistory[]
-
-  @@index([email])
-}
-
-model Preference {
-  id          String   @id @default(cuid())
-  userId      String   @unique
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tone        String   @default("professional")
-  audience    String   @default("founders")
-  length      String   @default("medium")
-  contentType String   @default("thought-leadership")
-  language    String   @default("en")
-  imageUrl    String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-}
-
-model Conversation {
-  id        String    @id @default(cuid())
-  userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title     String    @default("New Conversation")
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  messages  Message[]
-  posts     Post[]
-
-  @@index([userId])
-}
-
-model Message {
-  id             String       @id @default(cuid())
-  conversationId String
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  role           Role
-  content        String       @db.Text
-  imagePreview   String?
-  createdAt      DateTime     @default(now())
-
-  @@index([conversationId])
-}
-
-model Post {
-  id               String           @id @default(cuid())
-  userId           String
-  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  conversationId   String?
-  conversation     Conversation?    @relation(fields: [conversationId], references: [id], onDelete: SetNull)
-  content          String           @db.Text
-  hashtags         String[]         @default([])
-  imageUrl         String?
-  status           PostStatus       @default(DRAFT)
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
-  publishHistories PublishHistory[]
-
-  @@index([userId])
-  @@index([conversationId])
-}
-
-model LinkedInAccount {
-  id               String           @id @default(cuid())
-  userId           String           @unique
-  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  linkedinId       String
-  name             String?
-  email            String?
-  accessToken      String           @db.Text
-  refreshToken     String?          @db.Text
-  expiresAt        DateTime?
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
-  publishHistories PublishHistory[]
-
-  @@index([userId])
-  @@index([linkedinId])
-}
-
-model PublishHistory {
-  id                String           @id @default(cuid())
-  userId            String
-  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  postId            String
-  post              Post             @relation(fields: [postId], references: [id], onDelete: Cascade)
-  linkedInAccountId String?
-  linkedInAccount   LinkedInAccount? @relation(fields: [linkedInAccountId], references: [id], onDelete: SetNull)
-  status            PublishStatus    @default(PENDING)
-  platformPostId    String?
-  errorMessage      String?          @db.Text
-  publishedAt       DateTime         @default(now())
-
-  @@index([userId])
-  @@index([postId])
-  @@index([linkedInAccountId])
 }

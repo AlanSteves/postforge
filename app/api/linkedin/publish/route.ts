@@ -68,6 +68,8 @@ export async function POST(req: Request) {
       }
     }
 
+    const hasClientId = Boolean(process.env.LINKEDIN_CLIENT_ID);
+
     // Get or auto-connect LinkedIn account for user
     let linkedInAccount = await prisma.linkedInAccount.findUnique({
       where: { userId: user.id },

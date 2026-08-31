@@ -29,9 +29,15 @@ export async function GET() {
       });
     }
 
+    const sanitized = sanitizeLinkedInAccount(account);
     return NextResponse.json({
       success: true,
-      data: sanitizeLinkedInAccount(account),
+      data: {
+        isConnected: sanitized.isConnected,
+        authorName: sanitized.name || user.name || "Alex Rivera",
+        authorHeadline: sanitized.headline || "LinkedIn Member",
+        authorAvatar: sanitized.avatarUrl || "https://lh3.googleusercontent.com/aida-public/AB6AXuBe1MUwvl06PX--f2-qUTHmMy1BbrQoIyv2t2NWjyxrGL-XX4K_qsPKClPxCSklf6Mnx9VdgVSbkHfaW-_ZpmISkSjXykVP1RfStUXnU7PqyXSdcPPliouqTZTIAhwNZsKo_U6CyoJeL6YaTkq2PW8o_MRPMVhFSwle50JcsFuENM7EnMECwToZ7fZoWbRyAtHCt-LRvlEAQk0xXnZa9TS5O_jxGrAjF6mxgXojUZw4GLG0g6uMMI-jRg",
+      },
     });
   } catch (error) {
     console.error("GET LinkedIn account error:", error);

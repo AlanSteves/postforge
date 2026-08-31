@@ -31,6 +31,8 @@ interface PostContextType {
   signup: (data: any) => Promise<boolean>;
   signout: () => Promise<void>;
   publishToLinkedIn: () => Promise<boolean>;
+  connectLinkedIn: (simulate?: boolean) => void;
+  disconnectLinkedIn: () => Promise<boolean>;
   openPostPreview: (content?: string, hashtags?: string[]) => void;
   formatMessageToPost: (messageId: string, content?: string) => Promise<any>;
 }
@@ -50,7 +52,13 @@ export const PostProvider: React.FC<{ children: React.ReactNode }> = ({ children
     clearMessages,
   } = useChat();
   const { currentPost, setPostContent, setPostData, openPostPreview } = usePost();
-  const { account: linkedInAccount, isPublishing: isPublishingLinkedIn, publishPost } = useLinkedIn();
+  const {
+    account: linkedInAccount,
+    isPublishing: isPublishingLinkedIn,
+    publishPost,
+    connect: connectLinkedIn,
+    disconnect: disconnectLinkedIn,
+  } = useLinkedIn();
 
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
 
@@ -116,6 +124,8 @@ export const PostProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signup,
         signout,
         publishToLinkedIn: publishToLinkedInHandler,
+        connectLinkedIn,
+        disconnectLinkedIn,
         openPostPreview,
         formatMessageToPost,
       }}

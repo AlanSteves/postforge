@@ -12,15 +12,15 @@ export interface SafeLinkedInAccount {
   linkedinId: string;
   name: string | null;
   email: string | null;
+  avatarUrl: string | null;
+  headline: string | null;
   isConnected: boolean;
   expiresAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
 
-/**
- * Strips passwordHash from user records before returning to client.
- */
+
 export function sanitizeUser(user: any): SafeUser {
   if (!user) return user;
   const { passwordHash, ...safeUser } = user;

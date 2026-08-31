@@ -5,7 +5,7 @@ import { sanitizeUser, SafeUser } from "@/lib/sanitizer";
 
 const SESSION_COOKIE_NAME = "auth_session";
 const SESSION_SECRET = process.env.JWT_SECRET || "postforge_secret_jwt_key_2026_super_secure";
-const SESSION_DURATION_SECONDS = 60 * 60 * 24 * 7; // 7 days
+const SESSION_DURATION_SECONDS = 60 * 60 * 24 * 7;
 
 export interface SessionPayload {
   userId: string;
@@ -13,9 +13,7 @@ export interface SessionPayload {
   exp: number;
 }
 
-/**
- * Creates an HTTP-only session cookie for the authenticated user.
- */
+
 export async function createSession(userId: string): Promise<string> {
   const token = jwt.sign({ userId }, SESSION_SECRET, {
     expiresIn: SESSION_DURATION_SECONDS,
@@ -33,9 +31,7 @@ export async function createSession(userId: string): Promise<string> {
   return token;
 }
 
-/**
- * Retrieves the current authenticated user from the HTTP-only session cookie.
- */
+
 export async function getCurrentUser(): Promise<SafeUser | null> {
   try {
     const cookieStore = await cookies();
@@ -64,9 +60,7 @@ export async function getCurrentUser(): Promise<SafeUser | null> {
   }
 }
 
-/**
- * Asserts that a user is authenticated. Throws an Error or returns the user.
- */
+
 export async function requireUser(): Promise<SafeUser> {
   const user = await getCurrentUser();
   if (!user) {
@@ -75,9 +69,7 @@ export async function requireUser(): Promise<SafeUser> {
   return user;
 }
 
-/**
- * Destroys the current user session by clearing the HTTP-only cookie.
- */
+
 export async function destroySession(): Promise<void> {
   const cookieStore = await cookies();
   cookieStore.delete(SESSION_COOKIE_NAME);

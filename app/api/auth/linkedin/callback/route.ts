@@ -12,9 +12,14 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const code = searchParams.get("code");
     const error = searchParams.get("error");
+    const errorDescription = searchParams.get("error_description");
 
     if (error || !code) {
-      return NextResponse.redirect(new URL("/post-preview?error=linkedin_connect_failed", req.url));
+      const reason = errorDescription || error || "Authorization failed or cancelled by user";
+      console.warn("LinkedIn callback received error:", error, errorDescription);
+      return NextResponse.redirect(
+        new URL(`/post-preview?error=linkedin_connect_failed&reason=${encodeURIComponent(reason)}`, req.url)
+      );
     }
 
     const clientId = process.env.LINKEDIN_CLIENT_ID;
@@ -24,6 +29,9 @@ export async function GET(req: Request) {
     let accessToken = `simulated_token_${Date.now()}`;
     let linkedinId = `linkedin_${user.id}`;
     let authorName = user.name || "Alex Rivera";
+    let authorEmail = user.email;
+    let avatarUrl: string | null = null;
+    let headline = "LinkedIn Member";
 
     if (clientId && clientSecret) {
       try {
@@ -42,6 +50,33 @@ export async function GET(req: Request) {
         const tokenData = await tokenRes.json();
         if (tokenData.access_token) {
           accessToken = tokenData.access_token;
+
+          try {
+            const userinfoRes = await fetch("https://api.linkedin.com/v2/userinfo", {
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+              },
+            });
+            if (userinfoRes.ok) {
+              const userinfoData = await userinfoRes.json();
+              if (userinfoData.sub) {
+                linkedinId = userinfoData.sub;
+              }
+              if (userinfoData.name) {
+                authorName = userinfoData.name;
+              }
+              if (userinfoData.email) {
+                authorEmail = userinfoData.email;
+              }
+              if (userinfoData.picture) {
+                avatarUrl = userinfoData.picture;
+              }
+            } else {
+              console.error("Failed to fetch userinfo from LinkedIn, status:", userinfoRes.status);
+            }
+          } catch (userInfoError) {
+            console.error("Error fetching userinfo from LinkedIn:", userInfoError);
+          }
         }
       } catch (err) {
         console.error("Failed to exchange LinkedIn code for token:", err);
@@ -54,14 +89,19 @@ export async function GET(req: Request) {
       update: {
         accessToken,
         name: authorName,
-        email: user.email,
+        email: authorEmail,
+        linkedinId,
+        avatarUrl,
+        headline,
       },
       create: {
         userId: user.id,
         linkedinId,
         accessToken,
         name: authorName,
-        email: user.email,
+        email: authorEmail,
+        avatarUrl,
+        headline,
       },
     });
 

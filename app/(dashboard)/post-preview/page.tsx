@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, Suspense } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { AppHeader } from "@/components/layout/app-header";
 import { PostPreview } from "@/components/post-preview/post-preview";
@@ -31,7 +31,9 @@ export default function PostPreviewPage() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col h-full min-w-0 overflow-y-auto">
         <AppHeader onToggleMobileSidebar={() => setMobileSidebarOpen(true)} />
-        <PostPreview />
+        <Suspense fallback={<div className="p-8 text-center font-bold">Loading...</div>}>
+          <PostPreview />
+        </Suspense>
       </div>
     </div>
   );

@@ -15,7 +15,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   onClose,
   onConfirm,
 }) => {
-  const { publishToLinkedIn, isPublishingLinkedIn, linkedInAccount } = usePostContext();
+  const { publishToLinkedIn, isPublishingLinkedIn, linkedInAccount, connectLinkedIn } = usePostContext();
   const [published, setPublished] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -46,60 +46,104 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       {/* Modal Content */}
       <div className="relative z-10 max-w-[480px] w-full bg-[#ffffff] border-[4px] border-[#000000] shadow-[10px_10px_0px_0px_#000000] p-6 sm:p-8">
         {!published ? (
-          <div className="flex flex-col gap-6">
-            <div className="flex justify-between items-start border-b-[3px] border-[#000000] pb-4">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-2xl text-[#0062a0]">
-                  send
-                </span>
-                <h3 className="font-black text-xl uppercase tracking-tight text-[#1b1c1a]">
-                  READY TO PUBLISH?
-                </h3>
+          !linkedInAccount.isConnected ? (
+            <div className="flex flex-col gap-6">
+              <div className="flex justify-between items-start border-b-[3px] border-[#000000] pb-4">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-2xl text-[#0062a0]">
+                    link
+                  </span>
+                  <h3 className="font-black text-xl uppercase tracking-tight text-[#1b1c1a]">
+                    CONNECT LINKEDIN
+                  </h3>
+                </div>
+                <button
+                  onClick={onClose}
+                  className="p-1 border-[2px] border-[#000] bg-[#FAF9F5] hover:bg-[#ff94b1]"
+                >
+                  <span className="material-symbols-outlined text-sm">close</span>
+                </button>
               </div>
-              <button
-                onClick={onClose}
-                className="p-1 border-[2px] border-[#000] bg-[#FAF9F5] hover:bg-[#ff94b1]"
-              >
-                <span className="material-symbols-outlined text-sm">close</span>
-              </button>
-            </div>
 
-            {errorMsg && (
-              <div className="bg-[#ff94b1] border-[3px] border-[#000000] p-3 text-xs font-bold text-[#1b1c1a]">
-                ⚠️ {errorMsg}
+              <p className="text-base font-semibold text-[#414750] leading-relaxed">
+                Your LinkedIn account is not connected. Connect PostForge to your profile to publish this post.
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                <NeoButton
+                  variant="secondary"
+                  size="md"
+                  className="flex-1"
+                  onClick={onClose}
+                >
+                  CANCEL
+                </NeoButton>
+                <NeoButton
+                  variant="primary"
+                  size="md"
+                  className="flex-1"
+                  onClick={() => connectLinkedIn()}
+                >
+                  CONNECT NOW →
+                </NeoButton>
               </div>
-            )}
-
-            <p className="text-base font-semibold text-[#414750] leading-relaxed">
-              This post will be published publicly to your connected LinkedIn account (<strong>{linkedInAccount.authorName || "Alex Rivera"}</strong>).
-            </p>
-
-            <div className="bg-[#ffe173]/20 border-[2px] border-[#000000] p-3 text-xs font-bold text-[#1b1c1a] flex items-center gap-2">
-              <span className="material-symbols-outlined text-base text-[#705d00]">warning</span>
-              Make sure you reviewed post formatting and hashtags before confirming!
             </div>
+          ) : (
+            <div className="flex flex-col gap-6">
+              <div className="flex justify-between items-start border-b-[3px] border-[#000000] pb-4">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-2xl text-[#0062a0]">
+                    send
+                  </span>
+                  <h3 className="font-black text-xl uppercase tracking-tight text-[#1b1c1a]">
+                    READY TO PUBLISH?
+                  </h3>
+                </div>
+                <button
+                  onClick={onClose}
+                  className="p-1 border-[2px] border-[#000] bg-[#FAF9F5] hover:bg-[#ff94b1]"
+                >
+                  <span className="material-symbols-outlined text-sm">close</span>
+                </button>
+              </div>
 
-            <div className="flex flex-col sm:flex-row gap-3 pt-2">
-              <NeoButton
-                variant="secondary"
-                size="md"
-                className="flex-1"
-                onClick={onClose}
-                disabled={isPublishingLinkedIn}
-              >
-                CANCEL
-              </NeoButton>
-              <NeoButton
-                variant="primary"
-                size="md"
-                className="flex-1"
-                onClick={handlePost}
-                disabled={isPublishingLinkedIn}
-              >
-                {isPublishingLinkedIn ? "PUBLISHING..." : "POST IT →"}
-              </NeoButton>
+              {errorMsg && (
+                <div className="bg-[#ff94b1] border-[3px] border-[#000000] p-3 text-xs font-bold text-[#1b1c1a]">
+                  ⚠️ {errorMsg}
+                </div>
+              )}
+
+              <p className="text-base font-semibold text-[#414750] leading-relaxed">
+                This post will be published publicly to your connected LinkedIn account (<strong>{linkedInAccount.authorName}</strong>).
+              </p>
+
+              <div className="bg-[#ffe173]/20 border-[2px] border-[#000000] p-3 text-xs font-bold text-[#1b1c1a] flex items-center gap-2">
+                <span className="material-symbols-outlined text-base text-[#705d00]">warning</span>
+                Make sure you reviewed post formatting and hashtags before confirming!
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                <NeoButton
+                  variant="secondary"
+                  size="md"
+                  className="flex-1"
+                  onClick={onClose}
+                  disabled={isPublishingLinkedIn}
+                >
+                  CANCEL
+                </NeoButton>
+                <NeoButton
+                  variant="primary"
+                  size="md"
+                  className="flex-1"
+                  onClick={handlePost}
+                  disabled={isPublishingLinkedIn}
+                >
+                  {isPublishingLinkedIn ? "PUBLISHING..." : "POST IT →"}
+                </NeoButton>
+              </div>
             </div>
-          </div>
+          )
         ) : (
           <div className="flex flex-col items-center text-center gap-5 py-4">
             <div className="w-16 h-16 bg-[#55E6C1] border-[3px] border-[#000000] shadow-[4px_4px_0px_0px_#000000] flex items-center justify-center">
